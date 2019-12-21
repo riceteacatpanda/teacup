@@ -1,0 +1,135 @@
+{
+    "crypto": {
+        "robinwish": [{
+            10005: 2000
+        }],
+        "santaknowscrypto": [{
+            10000: 2000
+        }],
+        "rudolphcipherv5": [{
+            10002: 2000
+        }],
+        "hashedpresents": [{
+            10003: 2000
+        }],
+        "hashedpresents2": [{
+            10006: 2000
+        }]
+    },
+    "pwn": {
+        "snowverflow": [{
+            12006: 2000
+        }],
+        "photonos": [{
+            12007: 2000
+        }, 500, 0.2],
+        "blindfolded": [{
+            12004: 2000
+        }],
+        "theweather": [{
+            12002: 2000
+        }, 350],
+        "christmas2206": [{
+            12000: 2000
+        }],
+        "elfpostmaster": [{
+            12003: 2000
+        }],
+        "blindfolded": [{
+            12004: 2000
+        }],
+        "teamwork": [{
+            12001: 2000
+        }],
+        "eggnog": [{
+            12010: 2000
+        }],
+        "christmas2206_2": [{
+            12011: 2000
+        }],
+	"teamwork_2": [{
+	    12012: 2000
+	}]
+    },
+    "rev": {
+        "dontjump": [{
+            15000:2000
+        }]
+    },
+    "web": {
+        "sequelfun": [{
+            11006: 80
+        }, 150],
+        "gnomebuttonsv2": [{
+            11007: 80
+        }, 80, 0.05],
+        "roboworld": [{
+            11000: 11000
+        }, 200, 0.15],
+        "riggedelection": [{
+            11001: 80
+        }, 150, 0.15],
+        "xmashelper": [{
+            0: 0
+        }, 100, 0.15],
+        "executenoevil": [{
+            11002: 80
+        }, 150, 0.15],
+        "freeasinfreedom": [{
+            11003: 80
+        }, 1024, 0.3],
+        "hatfactory": [{
+            11005: 11005
+        }, 200, 0.15]
+    },
+    "misc": {
+        "maleficarium": [{
+            13012: 2000
+        }],
+        "krampusreturn": [{
+            13006: 2000
+        }],
+        "mayday": [{
+            13007: 2000
+        }],
+        "orakel": [{
+            13000: 2000
+        }],
+        "sntdcrshp": [{
+            13001: 2000
+        }, 100, 0.05],
+        "functionplotter": [{
+            13005: 2000
+        }]
+    },
+    "osint": {
+        "doxthegrinch": [{
+            13002: 80
+        }, 150],
+        "onlinetransactiontool": [{
+            13009: 80
+        }, 100, 0.05],
+        "rabbithole": [{
+            13008: 2000,
+            13010: 80,
+            13011: 21,
+            "13090-13100": "13090-13100"
+        }, 500, 0.3]
+    },
+    "quantum": {
+        "qtrivia": [{
+            13003: 2000
+        }],
+        "quantumsecret": [{
+            13004: 2000
+        }, 600]
+    },
+    "ppc": {
+        "ancientchristmas": [{
+            14001: 2000
+        }, 512],
+        "pythagoreicpancakes": [{
+            14004: 2000
+        }]
+    }
+}

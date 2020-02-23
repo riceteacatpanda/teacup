@@ -1,4 +1,5 @@
-# MicroBot
+# Teacup
+Forked from https://gitlab.com/Milkdrop/microbot
 
 A Discord bot that takes care of challenge dockers for X-MAS CTF.
 

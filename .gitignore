@@ -93,3 +93,5 @@ modules.xml
 settings.json
 testfile.py
 containers.json
+discord.log
+*.log

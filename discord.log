@@ -1,5 +1,0 @@
-2020-04-13 13:20:02,612:WARNING:discord.client: PyNaCl is not installed, voice will NOT be supported
-2020-04-13 13:20:02,613:INFO:discord.client: logging in using static token
-2020-04-13 13:20:03,237:INFO:discord.gateway: Created websocket connected to wss://gateway.discord.gg?encoding=json&v=6&compress=zlib-stream
-2020-04-13 13:20:03,239:INFO:discord.gateway: Shard ID None has sent the IDENTIFY payload.
-2020-04-13 13:20:03,447:INFO:discord.gateway: Shard ID None has connected to Gateway: ["gateway-prd-main-wwmt",{"micros":73203,"calls":["discord-sessions-prd-1-4",{"micros":71010,"calls":["start_session",{"micros":67261,"calls":["api-prd-main-9z9x",{"micros":52105,"calls":["get_user",{"micros":7324},"add_authorized_ip",{"micros":2615},"get_guilds",{"micros":3869},"coros_wait",{"micros":1}]}]},"guilds_connect",{"micros":2,"calls":[]},"presence_connect",{"micros":1,"calls":[]}]}]}] (Session ID: e2592b995efc3085585f5eae801003bb).

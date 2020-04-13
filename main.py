@@ -1,26 +1,25 @@
-# TEACUP - RTCP docker management Discord bot
-# Forked from milkdrop's Microbot for the XMAS CTF
-
-import os
-import subprocess
-import logging
 import discord
-import platform
-import asyncio
-import requests
-import time
-import psutil
+import os
 import json
+import logging
+import subprocess
+import sys
+import tqdm
 
+VERSION = "0.0.1a"
 
 if os.getuid() != 0:
 	print("This script requires root priviledges.")
-	exit(-1)
+	sys.exit(-1)
 
-# TODO: Switch to loguru
+abspath = os.path.abspath(__file__)
+bot_location = os.path.dirname(abspath)
+os.chdir(bot_location)
+
+# TODO: Switch to loguru?
 logger = logging.getLogger("discord")
 logger.setLevel(logging.INFO)
-handler = logging.FileHandler(filename = "discord.log", encoding = "utf-8", mode = "w")
+handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
 handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
 logger.addHandler(handler)
 
@@ -29,60 +28,25 @@ with open("settings.json") as f:
 	settings = json.load(f)
 
 	token = settings["discord-token"]
-	adminChannels = settings["channels"]["admin"]
-	publicChannels = settings["channels"]["public"]
+	admin_channels = settings["channels"]["admin"]
+	admin_roles = settings["roles"]["admin"]
+	admin_users = settings["users"]
 	maxvotes = settings["restart-votes-required"]
 	prefix = settings["command-prefix"]
 	presence_text = settings["playing-line"]
 	docker_info_file = settings["docker-info-file"]
-	docker_defaults = settings["docker-defaults"]
+	commands = settings["commands"]
 
 	del settings
 
-
 client = discord.Client()
-restartreq = {}
 
-cmds = {
-	"help": "Show this message",
-	"challs": "See available challenges",
-	"restart chall": "Vote to restart a challenge"
-}
-
-cmdsAdmin = {
-	"help": "Show this message",
-	"refresh": "Refresh challenge database",
-	"challenge": "Display challenge server status",
-	"platform": "Display platform server status"
-}
-
-cmdsDocker = {
-	"dockers": "Display all available dockers",
-	"running": "Display running dockers",
-	"start chall1 chall2 ...": "Start the docker for multiple challenges(chall1, chall2, ...)",
-	"stop chall1 ...": "Stop the docker for multiple challenges",
-	"restart chall1 ...": "Restart the docker for multiple challenges"
-}
-
-cmdsStatus = {
-	"status cat1 cat2 ...": "Display docker status from specified categories(cat1, cat2, ...) - Specify no category to display all",
-	"statusfull cat1 ...": "Display full docker status from specified categories"
-}
-
-
-# TODO: add commands to PM admins error and command logs
-# TODO: add function to log restart actions to another channel
 
 @client.event
 async def on_ready():
-	print("Ready! Connected as " + client.user.name)
-	client.loop.create_task(rotate_statuses())
-
-
-async def log_usage():
-	while True:
-		logger.info(formatSysStatus())
-		await asyncio.sleep(60 * 30)
+	print("Connected to Discord as " + client.user.name)
+	await client.change_presence(activity=discord.Game(name=presence_text + f" - {prefix}help"))
+	print()
 
 
 @client.event
@@ -92,289 +56,401 @@ async def on_message(message):
 	if message.author == client.user:
 		return
 
-	authorID = message.author.id
-	inMsg = message.content.lower().split()
+	input_message = message.content.lower().split(" ")
 
-	# If the message content does not start with the command prefix
-	if inMsg[0][:len(prefix)] != prefix:
-		return
+	if message.channel.id in admin_channels and input_message[0][:len(prefix)] == prefix:
+		command = input_message[0][len(prefix):]
 
-	inMsg[0] = inMsg[0][len(prefix):]  # remove prefix from start of message
-	printer = ":gear: "
+		if message.author.id not in admin_users:
+			user_role_ids = [role.id for role in message.author.roles]
+			if len([i for i in admin_roles if i in user_role_ids]) == 0:
+				print("Prevented unauthorized access.")
+				await message.channel.send("Sorry - you're not allowed to execute commands.")
+				return
 
-	# TODO: switch from using channel IDs to using role IDs
-	if message.channel.id in publicChannels:  # if the message was sent from a public challenge
-		if inMsg[0] == "help":
-			printer += "Here are the commands you can run:\n"
-			for cmd in cmds:
-				printer += "\t**- {}:** `{}`\n".format(cmd, cmds[cmd])
-		elif inMsg[0] == "challs":
-			f = subprocess.check_output(["docker", "container", "ls"]).decode("UTF-8").strip().split("\n")[1:]
+		print(command)
 
-			if len(f) == 0:
-				printer += "No Challenges"
-			else:
-				running = []
-				runningData = {}
+		if command == "help":
+			output = "These are the available commands:\n"
+			for x in commands:
+				output += f"• `{x}`: {commands[x]}"
+				output += "\n"
+			output += f"The command prefix is `{prefix}`\n\nBot version: {VERSION}"
+			await message.channel.send(output)
 
-				for line in f:
-					line = line.split()
-					line = line[len(line)-1]
-					running.append(line)
+		elif command == "reload":
+			async with message.channel.typing():
+				load_dockers()
+			await message.channel.send("Master container list reloaded.")
 
-				printer += "Available challenges:\n"
+		elif command == "ls":
+			output = "**Available containers**\n\n"
+			async with message.channel.typing():
+				# iterate over all challenges
+				# list containers and statuses
+				for challenge in dockers:
+					segment = ""
 
-				for cat in dockers:
-					for chall in dockers[cat]:
-						if chall in running:
-							if cat not in runningData:
-								runningData[cat] = []
+					segment += "**" + dockers[challenge]["long-name"] + f"** - `{challenge}`\n"
+					segment += " " * 4 + "Type: "
 
-							runningData[cat].append(chall)
+					if dockers[challenge]["type"] == "compose":
+						segment += "compose\n"
+						segment += " " * 4 + "Containers:\n"
+						for container in list_compose_containers(dockers[challenge]["directory"]):
+							status, exitcode = get_container_status(container)
+							ports = get_container_ports(container)
+							segment += " " * 8 + f"`{container}`: {status}" + \
+									  (f" with code {exitcode}" if status == "exited" else "")
+							segment += (", ports " + ",".join(ports)) if len(ports) != 0 else ""
+							segment += "\n"
 
-				for cat in runningData:
-					printer += "\t**- {}({}):** `".format(cat.upper(), len(runningData[cat]))
-					for chall in runningData[cat]:
-						printer += chall + " "
-					printer += "`\n"
+					elif dockers[challenge]["type"] == "container":
+						segment += "single container\n"
+						status, exitcode = get_container_status(dockers[challenge]["container-name"])
+						ports = get_container_ports(dockers[challenge]["container-name"])
+						segment += " " * 4 + f"Status: {status}" + (f" with code {exitcode}" if status == "exited" else "")
+						segment += (", ports " + ",".join(ports)) if len(ports) != 0 else ""
 
-		elif inMsg[0] == "restart":
-			name = "".join(inMsg[1:])
-			name = resolveName(name)
-			challData = getChallenge(name)
+					else:
+						await message.channel.send("Unknown type on " + challenge)
+						return
 
-			if challData == []:
-				printer += "Challenge `{}` does not exist".format(name)
-			else:
-				if name not in restartreq:
-					restartreq[name] = []
+					segment += "\n"
 
-				if authorID not in restartreq[name]:
-					restartreq[name].append(authorID)
+					# Compensate for Discord's 2k character limit
+					if len(segment) + len(output) > 2000:
+						await message.channel.send(output)
+						output = segment
+					else:
+						output += segment
 
-				votes = len(restartreq[name])
+			await message.channel.send(output)
 
-				if votes < maxvotes:
-					printer += "**{}/{}** votes needed to restart `{}`".format(votes, maxvotes, name)
+		elif command == "restart":
+			name = input_message[1]
+
+			output = ""
+
+			async with message.channel.typing():
+				if name in dockers:
+
+					# Challenge shorthand name recognised
+					if dockers[name]["type"] == "compose":
+
+						restart_compose(dockers[name]["directory"])
+						output += f"Compose cluster `{name}` restarted.\n\n"
+						for container in list_compose_containers(dockers[name]["directory"]):
+							status, exitcode = get_container_status(container)
+							output += " " * 4 + f"`{container}`: {status}" + \
+									  (f" with code {exitcode}" if status == "exited" else "") + "\n"
+
+					elif dockers[name]["type"] == "container":
+
+						res = restart_container(dockers[name]["container-name"])
+						if not res[0]:
+							await message.channel.send("Failed: " + res[1])
+							return
+						output += "Single container `" + dockers[name]["container-name"] + "` restarted. \n\n"
+						status, exitcode = get_container_status(dockers[name]["container-name"])
+						output += " " * 4 + "`" + dockers[name]["container-name"] + f"`: {status}" + \
+								  (f" with code {exitcode}" if status == "exited" else "") + "\n"
+					else:
+						await message.channel.send("Unknown type on " + name)
+						return
 				else:
-					stopDocker(name)
-					startDocker(name)
-					printer += "Challenge `{}` has been restarted".format(name)
-					restartreq[name] = []
-		else:
-			printer = "Unknown command: `{}`".format(inMsg[0])
+					# Challenge shorthand not recognised, assuming unknown container name
 
-		await message.channel.send(printer)
+					res = restart_container(name)
+					if not res[0]:
+						output = "Failed: " + res[1]
+					else:
+						output += f"Single container `{name}` restarted.\n\n"
+						status, exitcode = get_container_status(name)
+						output += " " * 4 + f"`{name}`: {status}" + \
+								  (f" with code {exitcode}" if status == "exited" else "") + "\n"
 
-	elif message.channel.id in adminChannels:  # if the message was sent from an admin channel
-		if inMsg[0] == "help":
-			printer += "Here are the commands you can run:\n"
-			for cmd in cmdsAdmin:
-				printer += "\t**- {}:** `{}`\n".format(cmd, cmdsAdmin[cmd])
+			await message.channel.send(output)
 
-			printer += "\n:gear: Docker Commands:\n"
-			for cmd in cmdsDocker:
-				printer += "\t**- {}:** `{}`\n".format(cmd, cmdsDocker[cmd])
+		elif command == "stop":
+			name = input_message[1]
 
-			printer += "\n:gear: Status Commands:\n"
-			for cmd in cmdsStatus:
-				printer += "\t**- {}:** `{}`\n".format(cmd, cmdsStatus[cmd])
+			output = ""
 
-		elif inMsg[0] == "refresh":
-			challenges = load_dockers()s
-			printer += "Challenge database has been refreshed"
+			async with message.channel.typing():
+				if name in dockers:
 
-		elif inMsg[0] == "challenge":
-			printer += "Challenge Server Status:\n"
-			printer += formatSysStatus()
+					# Challenge shorthand name recognised
+					if dockers[name]["type"] == "compose":
 
-		elif inMsg[0] == "platform":
-			return
+						stop_compose(dockers[name]["directory"])
+						output += f"Compose cluster `{name}` stopped.\n\n"
+						for container in list_compose_containers(dockers[name]["directory"]):
+							status, exitcode = get_container_status(container)
+							output += " " * 4 + f"`{container}`: {status}" + \
+									  (f" with code {exitcode}" if status == "exited" else "") + "\n"
 
-		elif inMsg[0] == "dockers":
-			printer += "Available dockers:\n"
-			for cat in dockers:
-				printer += "\t**- {}({}):** `".format(cat.upper(), len(dockers[cat]))
+					elif dockers[name]["type"] == "container":
 
-				for chall in dockers[cat]:
-					printer += chall + " "
-
-				printer += "`\n"
-
-		elif inMsg[0] == "start" or inMsg[0] == "stop" or inMsg[0] == "restart":
-			printer += "Starting Challenges:\n" if inMsg[0] == "start" else "Stopping Challenges:\n"
-
-			for name in inMsg[1:]:
-				name = resolveName(name)
-				challData = getChallenge(name)
-
-				# TODO: make bot looks like it's typing to signify it's doing something
-				# https://discordpy.readthedocs.io/en/latest/api.html#discord.abc.Messageable.typing
-
-				if challData == []:
-					printer += "\t**- {}:** `Does not exist`\n".format(name)
+						res = stop_container(dockers[name]["container-name"])
+						if not res[0]:
+							await message.channel.send("Failed: " + res[1])
+							return
+						output += "Single container `" + dockers[name]["container-name"] + "` stopped. \n\n"
+						status, exitcode = get_container_status(dockers[name]["container-name"])
+						output += " " * 4 + "`" + dockers[name]["container-name"] + f"`: {status}" + \
+								  (f" with code {exitcode}" if status == "exited" else "") + "\n"
+					else:
+						await message.channel.send("Unknown type on " + name)
+						return
 				else:
-					if inMsg[0] == "stop" or inMsg[0] == "restart":
-						stopDocker(name)
-					if inMsg[0] == "start" or inMsg[0] == "restart":
-						startDocker(name)
+					# Challenge shorthand not recognised, assuming unknown container name
 
-					printer += "\t**- {}:** `OK [{}]`\n".format(name, str(challData[1])[1:-1].split(":")[0])
+					res = stop_container(name)
+					if not res[0]:
+						output = "Failed: " + res[1]
+					else:
+						output += f"Single container `{name}` stopped.\n\n"
+						status, exitcode = get_container_status(name)
+						output += " " * 4 + f"`{name}`: {status}" + \
+								  (f" with code {exitcode}" if status == "exited" else "") + "\n"
 
-		elif inMsg[0] == "status" or inMsg[0] == "statusfull" or inMsg[0] == "running":
-			categories = inMsg[1:]
-			f = subprocess.check_output(["docker", "container", "ls"]).decode("UTF-8").strip().split("\n")[1:]
+			await message.channel.send(output)
 
-			if len(f) == 0:
-				printer += "No Dockers Running."
-			else:
-				running = []
-				runningData = {}
+		elif command == "start":
+			name = input_message[1]
 
-				for line in f:
-					line = line.split()
-					line = line[len(line) - 1]
-					running.append(line)
+			output = ""
 
-				printer += "Dockers running:\n"
-				total = 0
+			async with message.channel.typing():
+				if name in dockers:
 
-				for cat in dockers:
-					if categories != [] and cat not in categories:
-						continue
+					# Challenge shorthand name recognised
+					if dockers[name]["type"] == "compose":
 
-					for chall in dockers[cat]:
-						if chall in running:
-							challData = getChallenge(chall)
-							if inMsg[0] != "running":
-								pid = subprocess.check_output(["docker inspect -f "{{.State.Pid}}" " + chall], shell = True).decode("ASCII").strip()
-								numConnections = subprocess.check_output(["nsenter -t {} -n netstat -anp | grep ESTABLISHED | wc -l".format(pid)], shell = True).decode("ASCII").strip()
-								total += int(numConnections)
-							else:
-								numConnections = 0
+						start_compose(dockers[name]["directory"])
+						output += f"Compose cluster `{name}` started.\n\n"
+						for container in list_compose_containers(dockers[name]["directory"]):
+							status, exitcode = get_container_status(container)
+							output += " " * 4 + f"`{container}`: {status}" + \
+									  (f" with code {exitcode}" if status == "exited" else "") + "\n"
 
-							if cat not in runningData:
-								runningData[cat] = []
+					elif dockers[name]["type"] == "container":
 
-							runningData[cat].append([chall, numConnections, challData[1]])
+						res = start_container(dockers[name]["container-name"])
+						if not res[0]:
+							await message.channel.send("Failed: " + res[1])
+							return
+						output += "Single container `" + dockers[name]["container-name"] + "` started. \n\n"
+						status, exitcode = get_container_status(dockers[name]["container-name"])
+						output += " " * 4 + "`" + dockers[name]["container-name"] + f"`: {status}" + \
+								  (f" with code {exitcode}" if status == "exited" else "") + "\n"
+					else:
+						await message.channel.send("Unknown type on " + name)
+						return
+				else:
+					# Challenge shorthand not recognised, assuming unknown container name
 
-				for cat in runningData:
-					printer += "\t**- {}({}):** ".format(cat.upper(), len(runningData[cat]))
+					res = start_container(name)
+					if not res[0]:
+						output = "Failed: " + res[1]
+					else:
+						output += f"Single container `{name}` started.\n\n"
+						status, exitcode = get_container_status(name)
+						output += " " * 4 + f"`{name}`: {status}" + \
+								  (f" with code {exitcode}" if status == "exited" else "") + "\n"
 
-					if inMsg[0] == "status":
-						printer += "`"
-						for chall in runningData[cat]:
-							printer += chall[0] + " [{}], ".format(chall[1])
-						printer += "`\n"
-
-					elif inMsg[0] == "statusfull":
-						printer += "\n"
-						for chall in runningData[cat]:
-							printer += "\t\t- " + chall[0] + ": `{} Players [{}]`\n".format(chall[1], chall[2])
-
-					elif inMsg[0] == "running":
-						printer += "`"
-						for chall in runningData[cat]:
-							printer += chall[0] + " "
-						printer += "`\n"
-
-				if inMsg[0] != "running":
-					printer += "\nTotal Connections: **{}**".format(total)
-		else:
-			printer = "Unknown command: `{}`".format(inMsg[0])
-
-		await message.channel.send(printer)
-	# if the message was not sent in any of the channels listed in one of the ID lists nothing is done
+			await message.channel.send(output)
 
 
-def startDocker(name, cpus=docker_defaults["cpus"], memory=docker_defaults["memory"]):
-	"""
-	Starts a specified docker container using CPU and memory values specified
-	"""
-	challData = getChallenge(name)
-	port = ""
-	for portSetting in challData[1]:
-		if portSetting != 0:
-			port += "-p {}:{} ".format(portSetting, challData[1][portSetting])
+# Helper functions
 
-	if len(challData) > 2:
-		memory = challData[2]
-
-	if len(challData) > 3:
-		cpus = challData[3]
-
-	cmd = "docker run -d --cpus="{1}" --memory="{2}m" --name {0} {3} --restart always {0}".format(name, cpus, memory, port)
-	os.system(cmd)
-	return cmd
+def run_command(command):
+	result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	if result.stdout == b"":
+		result = result.stderr
+		error = True
+	else:
+		result = result.stdout
+		error = False
+	return result.decode().strip("\n"), error
 
 
-def stopDocker(name):
-	"""
-	Stops a specificed docker container
-	"""
-	cmd = "docker rm -f {}".format(name)
-	os.system(cmd)
-	return cmd
+def validate_container_command(output, name):
+	if "no such container" in output:
+		return False, "no such container"
+	elif output != name.lower():
+		return False, output
+	else:
+		return True, "ok"
 
 
-def resolveName(name):
-	for cat in dockers:
-		for docker in dockers[cat]:
-			if name == docker[:len(name)]:
-				return docker
-
-	return name
-
-
-def getChallenge(chall):
-	for cat in dockers:
-		if chall in dockers[cat]:
-			return [cat] + dockers[cat][chall]
-	return []
-
-
-def getSysStatus():
-	"""
-	Gets CPU and memory usage values, as well as the number of connections to the machine
-	"""
-	mem = psutil.virtual_memory()
-	memUsed = round(mem.used /(1024 ** 2))
-	memTotal = round(mem.total /(1024 ** 2))
-
-	numConnections = subprocess.check_output(["netstat -anp | grep ESTABLISHED | wc -l"], shell=True).decode("ASCII").strip()
-
-	return {"cpu": round(psutil.cpu_percent(), 2), "memUsed": memUsed, "memTotal": memTotal, "numConnections": numConnections}
-
-
-def formatSysStatus():
-	"""
-	Formats the output from getSysStatus into a human readable form
-	"""
-	sysStatus = getSysStatus()
-
-	output = "**{}%** CPU Usage\n".format(sysStatus["cpu"])
-	output += "**{}/{}** MB RAM Used\n".format(sysStatus["memUsed"], sysStatus["memTotal"])
-	output += "**{}** Connections\n".format(sysStatus["numConnections"])
-
-	return output
-
+# Miscellaneous functions
 
 def load_dockers():
 	"""
-	Returns docker container information from the file specified as docker-info-file in the settings JSON.s
+	Returns Docker container information from the file specified as docker-info-file in the settings JSON
 	"""
-	# TODO: Change this, it's rubbish
-	return eval(open(docker_info_file, "r").read().strip())
+	global dockers
+	dockers = json.load(open(docker_info_file))
 
 
-async def rotate_statuses():
-	while True:
-		for status in presence_text:
-			await client.change_presence(activity=discord.CustomActivity(presence_text))
-			await asyncio.sleep(60)
+def list_compose_containers(directory):
+	os.chdir(directory)
+	result, _ = run_command(["sudo", "docker-compose", "ps"])
+	result = result.split("\n")[2:]
+	os.chdir(bot_location)
+	return [line.split(" ")[0] for line in result]
 
 
-dockers = load_dockers()
+def get_container_status(name):
+	result, _ = run_command(["sudo", "docker", "inspect", name])
+	if "no such container" in result:
+		return "no such container", 0
+	try:
+		j = json.loads(result)[0]
+	except json.decoder.JSONDecodeError:
+		return result, 0
 
-client.loop.create_task(log_usage())
+	if "State" not in j:
+		return "created", 0
+	else:
+		return j["State"]["Status"], j["State"]["ExitCode"]
+
+
+def get_container_ports(name):
+	result, _ = run_command(["sudo", "docker", "inspect", name])
+	if "no such container" in result:
+		return "no such container"
+	try:
+		j = json.loads(result)[0]
+	except json.decoder.JSONDecodeError:
+		return result
+
+	ports = []
+
+	if "NetworkSettings" not in j:
+		return []
+	else:
+		for port in j["NetworkSettings"]["Ports"]:
+			if j["NetworkSettings"]["Ports"][port] is not None:
+				internal_port = port.split("/")[0]
+				host_port = j["NetworkSettings"]["Ports"][port][0]["HostPort"]
+				ports.append(f"{host_port}:{internal_port}")
+
+		return ports
+
+
+def get_all_containers():
+	cmd, _ = run_command(["sudo", "docker", "ps", "-a"])
+	cmd = cmd.strip().split("\n")[1:]
+	cmd = [line.split(" ")[0] for line in cmd]
+	return cmd
+
+
+def remove_container(name):
+	run_command(["sudo", "docker", "stop", name])
+	run_command(["sudo", "docker", "rm", name])
+
+
+# Create functions
+
+def create_compose(directory):
+	os.chdir(directory)
+	run_command(["sudo", "docker-compose", "up", "--no-start"])
+	os.chdir(bot_location)
+
+
+def create_container(name, arguments, image):
+	result, error = run_command(["sudo", "docker", "create", f"--name={name}", arguments, image])
+	if error:
+		print(result)
+		sys.exit(-1)
+
+
+# Restart functions
+
+def restart_compose(directory):
+	os.chdir(directory)
+	run_command(["sudo", "docker-compose", "restart"])
+	os.chdir(bot_location)
+
+
+def restart_container(name):
+	result, _ = run_command(["sudo", "docker", "restart", name])
+	result = result.lower()
+	return validate_container_command(result, name)
+
+
+# Stop functions
+
+def stop_compose(directory):
+	os.chdir(directory)
+	run_command(["sudo", "docker-compose", "stop"])
+	os.chdir(bot_location)
+
+
+def stop_container(name):
+	result, _ = run_command(["sudo", "docker", "stop", name])
+	result = result.lower()
+	return validate_container_command(result, name)
+
+# Start functions
+
+def start_compose(directory):
+	os.chdir(directory)
+	run_command(["sudo", "docker-compose", "up", "-d"])
+	os.chdir(bot_location)
+
+
+def start_container(name):
+	result, _ = run_command(["sudo", "docker", "start", name])
+	result = result.lower()
+	return validate_container_command(result, name)
+
+
+load_dockers()
+print("Container information loaded")
+
+if len(sys.argv) >= 2:
+	if "init" in sys.argv:
+		print("Setting up containers")
+		containers = get_all_containers()
+		with tqdm.tqdm(total=len(containers)+len(dockers)) as pbar:
+			for container in get_all_containers():
+				remove_container(container)
+				pbar.update(1)
+
+			for chall in dockers:
+				if dockers[chall]["type"] == "compose":
+					create_compose(dockers[chall]["directory"])
+				elif dockers[chall]["type"] == "container":
+					c = dockers[chall]
+					create_container(c["container-name"], c["create-args"], c["image"])
+			pbar.update(1)
+
+	if "start" in sys.argv:
+		print("Starting all containers")
+		with tqdm.tqdm(total=len(dockers)) as pbar:
+			for container in get_all_containers():
+				remove_container(container)
+				pbar.update(1)
+
+			for chall in dockers:
+				if dockers[chall]["type"] == "compose":
+					start_compose(dockers[chall]["directory"])
+				elif dockers[chall]["type"] == "container":
+					c = dockers[chall]
+					start_container(c["container-name"])
+			pbar.update(1)
+
+	if "bot" not in sys.argv:
+		sys.exit()
+else:
+	print("""Provide one (or more) of the following command line arguments:
+	init - remove all preexisting Docker containers and recreate from the Docker container file.
+	start - start all Docker containers from the Docker container file
+	bot - start the Discord bot""")
+	sys.exit()
+
 client.run(token)

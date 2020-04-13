@@ -1,25 +1,35 @@
 {
     
-    "discord-token": "PLACEHOLDER",
+    "discord-token": "Njk5MjMwMzM3ODM3ODI2MDg4.XpRXdQ.sZIeinSIjup1D4IiXwnY9xnswI0",
     "command-prefix": "t!",
-    "playing-line": [
-        "Have a cup of tea"
-    ],
+    "playing-line": "at drinking tea",
 
     "restart-votes-required": 5,
     "channels": {
-        "admin": [],
-        "public": [],
-        "action-log": ""
+        "admin": [699223075417358347, 699231373054967888],
+        "action-log": []
     },
     "roles": {
-        "admin": []
+        "admin": [
+            624036830832099328,
+            669973912221646862,
+            675182207119261752
+        ]
     },
+    "users": [
+        289130374204751873
+    ],
 
-    "docker-info-file": "dockers",
-    "docker-defaults": {
-        "cpus": 0.1,
-        "memory": 100
+    "docker-info-file": "containers.json",
+
+    "commands":{
+        "ls": "List all Docker containers. Usage: `ls`",
+        "stop": "Stop container(s) of specified challenge. Usage: `stop <name>`",
+        "start": "Start container(s) of specified challenge. Usage: `start <name>`",
+        "restart": "Restart container(s) of specified challenge. Usage: `restart <name>`",
+        "reload": "Reload master container list. Usage: `reload`",
+        "help": "Show this command"
     }
+
 
 }

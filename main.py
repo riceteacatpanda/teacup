@@ -9,14 +9,13 @@ import tqdm
 VERSION = "0.0.1a"
 
 if os.getuid() != 0:
-	print("This script requires root priviledges.")
+	print("This script requires root privileges.")
 	sys.exit(-1)
 
 abspath = os.path.abspath(__file__)
 bot_location = os.path.dirname(abspath)
 os.chdir(bot_location)
 
-# TODO: Switch to loguru?
 logger = logging.getLogger("discord")
 logger.setLevel(logging.INFO)
 handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
@@ -31,7 +30,6 @@ with open("settings.json") as f:
 	admin_channels = settings["channels"]["admin"]
 	admin_roles = settings["roles"]["admin"]
 	admin_users = settings["users"]
-	maxvotes = settings["restart-votes-required"]
 	prefix = settings["command-prefix"]
 	presence_text = settings["playing-line"]
 	docker_info_file = settings["docker-info-file"]
@@ -94,6 +92,7 @@ async def on_message(message):
 					segment += "**" + dockers[challenge]["long-name"] + f"** - `{challenge}`\n"
 					segment += " " * 4 + "Type: "
 
+					# I hereby give this section of code the name of "spaghetti".
 					if dockers[challenge]["type"] == "compose":
 						segment += "compose\n"
 						segment += " " * 4 + "Containers:\n"
@@ -109,7 +108,8 @@ async def on_message(message):
 						segment += "single container\n"
 						status, exitcode = get_container_status(dockers[challenge]["container-name"])
 						ports = get_container_ports(dockers[challenge]["container-name"])
-						segment += " " * 4 + f"Status: {status}" + (f" with code {exitcode}" if status == "exited" else "")
+						segment += " " * 4 + f"Status: {status}" + \
+								   (f" with code {exitcode}" if status == "exited" else "")
 						segment += (", ports " + ",".join(ports)) if len(ports) != 0 else ""
 
 					else:
@@ -126,6 +126,9 @@ async def on_message(message):
 						output += segment
 
 			await message.channel.send(output)
+
+		elif len(input_message) < 2:
+			await message.channel.send("Not enough arguments.")
 
 		elif command == "restart":
 			name = input_message[1]

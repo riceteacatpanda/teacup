@@ -92,7 +92,7 @@ async def on_message(message):
                     segment = ""
 
                     segment += "**" + dockers[challenge]["long-name"] + f"** (" + dockers[challenge]["category"] + \
-							   ") - `{challenge}`\n"
+							   f") - `{challenge}`\n"
                     segment += " " * 4 + "Type: "
 
                     # I hereby give this section of code the name of "spaghetti".
@@ -131,9 +131,9 @@ async def on_message(message):
             await message.channel.send(output)
 
         elif command == "restart":
-			elif len(input_message) < 2:
-				await message.channel.send("Not enough arguments.")
-				return
+            elif len(input_message) < 2:
+                await message.channel.send("Not enough arguments.")
+                return
 				
             name = input_message[1]
 
@@ -181,8 +181,8 @@ async def on_message(message):
 
         elif command == "stop":
 			elif len(input_message) < 2:
-				await message.channel.send("Not enough arguments.")
-				return
+                await message.channel.send("Not enough arguments.")
+                return
 				
 		
             name = input_message[1]
@@ -231,8 +231,8 @@ async def on_message(message):
 
         elif command == "start":
 			elif len(input_message) < 2:
-				await message.channel.send("Not enough arguments.")
-				return
+                await message.channel.send("Not enough arguments.")
+                return
 				
 		
             name = input_message[1]
@@ -279,8 +279,8 @@ async def on_message(message):
 
             await message.channel.send(output)
 			
-		else:
-			await message.channel.send("Unknown command")
+        else:
+            await message.channel.send("Unknown command")
 
 
 # Helper functions

@@ -91,7 +91,8 @@ async def on_message(message):
                 for challenge in dockers:
                     segment = ""
 
-                    segment += "**" + dockers[challenge]["long-name"] + f"** - `{challenge}`\n"
+                    segment += "**" + dockers[challenge]["long-name"] + f"** (" + dockers[challenge]["category"] + \
+							   ") - `{challenge}`\n"
                     segment += " " * 4 + "Type: "
 
                     # I hereby give this section of code the name of "spaghetti".

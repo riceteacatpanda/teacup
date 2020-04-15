@@ -7,7 +7,7 @@ import sys
 import discord
 import tqdm
 
-VERSION = "0.0.1a"
+VERSION = "0.0.7b"
 
 if os.getuid() != 0:
     print("This script requires root privileges.")

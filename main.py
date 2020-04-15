@@ -7,7 +7,7 @@ import sys
 import discord
 import tqdm
 
-VERSION = "0.0.7b"
+VERSION = "0.0.8b"
 
 if os.getuid() != 0:
     print("This script requires root privileges.")
@@ -130,10 +130,11 @@ async def on_message(message):
 
             await message.channel.send(output)
 
-        elif len(input_message) < 2:
-            await message.channel.send("Not enough arguments.")
-
         elif command == "restart":
+			elif len(input_message) < 2:
+				await message.channel.send("Not enough arguments.")
+				return
+				
             name = input_message[1]
 
             output = ""
@@ -179,6 +180,11 @@ async def on_message(message):
             await message.channel.send(output)
 
         elif command == "stop":
+			elif len(input_message) < 2:
+				await message.channel.send("Not enough arguments.")
+				return
+				
+		
             name = input_message[1]
 
             output = ""
@@ -224,6 +230,11 @@ async def on_message(message):
             await message.channel.send(output)
 
         elif command == "start":
+			elif len(input_message) < 2:
+				await message.channel.send("Not enough arguments.")
+				return
+				
+		
             name = input_message[1]
 
             output = ""
@@ -267,6 +278,9 @@ async def on_message(message):
                                   (f" with code {exitcode}" if status == "exited" else "") + "\n"
 
             await message.channel.send(output)
+			
+		else:
+			await message.channel.send("Unknown command")
 
 
 # Helper functions

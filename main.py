@@ -131,10 +131,10 @@ async def on_message(message):
             await message.channel.send(output)
 
         elif command == "restart":
-            elif len(input_message) < 2:
-                await message.channel.send("Not enough arguments.")
+			if len(input_message) < 2: 
+                await message.channel.send("Not enough arguments")
                 return
-				
+
             name = input_message[1]
 
             output = ""
@@ -180,11 +180,10 @@ async def on_message(message):
             await message.channel.send(output)
 
         elif command == "stop":
-			elif len(input_message) < 2:
-                await message.channel.send("Not enough arguments.")
+            if len(input_message) < 2: 
+                await message.channel.send("Not enough arguments")
                 return
-				
-		
+
             name = input_message[1]
 
             output = ""
@@ -230,11 +229,10 @@ async def on_message(message):
             await message.channel.send(output)
 
         elif command == "start":
-			elif len(input_message) < 2:
-                await message.channel.send("Not enough arguments.")
+            if len(input_message) < 2: 
+                await message.channel.send("Not enough arguments")
                 return
-				
-		
+                
             name = input_message[1]
 
             output = ""

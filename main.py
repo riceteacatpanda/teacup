@@ -5,7 +5,6 @@ import subprocess
 import sys
 
 import discord
-import tqdm
 
 VERSION = "0.0.8b"
 
@@ -512,33 +511,31 @@ if len(sys.argv) >= 2:
     if "init" in sys.argv:
         print("Setting up containers")
         containers = get_all_containers()
-        with tqdm.tqdm(total=len(containers) + len(dockers)) as pbar:
-            for container in get_all_containers():
-                remove_container(container)
-                pbar.update(1)
+        for container in get_all_containers():
+            print("Removing", container)
+            remove_container(container)
 
-            for chall in dockers:
-                if dockers[chall]["type"] == "compose":
-                    create_compose(dockers[chall]["directory"])
-                elif dockers[chall]["type"] == "container":
-                    c = dockers[chall]
-                    create_container(c["container-name"], c["create-args"], c["image"])
-            pbar.update(1)
+        for chall in dockers:
+            print("Creating", chall)
+            if dockers[chall]["type"] == "compose":
+                create_compose(dockers[chall]["directory"])
+            elif dockers[chall]["type"] == "container":
+                c = dockers[chall]
+                create_container(c["container-name"], c["create-args"], c["image"])
 
     if "start" in sys.argv:
         print("Starting all containers")
-        with tqdm.tqdm(total=len(dockers)) as pbar:
-            for container in get_all_containers():
-                remove_container(container)
-                pbar.update(1)
+        for container in get_all_containers():
+            print("Removing", container)
+            remove_container(container)
 
-            for chall in dockers:
-                if dockers[chall]["type"] == "compose":
-                    start_compose(dockers[chall]["directory"])
-                elif dockers[chall]["type"] == "container":
-                    c = dockers[chall]
-                    start_container(c["container-name"])
-            pbar.update(1)
+        for chall in dockers:
+            print("Starting", container)
+            if dockers[chall]["type"] == "compose":
+                start_compose(dockers[chall]["directory"])
+            elif dockers[chall]["type"] == "container":
+                c = dockers[chall]
+                start_container(c["container-name"])
 
     if "bot" not in sys.argv:
         sys.exit()

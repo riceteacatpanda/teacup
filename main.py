@@ -113,6 +113,7 @@ async def on_message(message):
                         segment += " " * 4 + f"Status: {status}" + \
                                    (f" with code {exitcode}" if status == "exited" else "")
                         segment += (", ports " + ",".join(ports)) if len(ports) != 0 else ""
+                        segment += "\n"
 
                     else:
                         await message.channel.send("Unknown type on " + challenge)

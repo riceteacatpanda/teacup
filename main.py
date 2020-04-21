@@ -3,10 +3,11 @@ import logging
 import os
 import subprocess
 import sys
+import time
 
 import discord
 
-VERSION = "0.0.8b"
+VERSION = "0.0.9b"
 
 if os.getuid() != 0:
     print("This script requires root privileges.")
@@ -39,6 +40,8 @@ with open("settings.json") as f:
 
 client = discord.Client()
 dockers = None
+
+waiting_messages = {}
 
 
 @client.event
@@ -189,7 +192,13 @@ async def on_message(message):
             output = ""
 
             async with message.channel.typing():
-                if name in dockers:
+                if name == "*":
+                    m = await message.channel.send("Are you sure you want to stop all containers? React with :white_check_mark: to proceed.")
+                    await m.add_reaction("✅")
+                    waiting_messages[m.id] = {"type":"stop", "time":time.time()}
+                    return
+
+                elif name in dockers:
 
                     # Challenge shorthand name recognised
                     if dockers[name]["type"] == "compose":
@@ -238,7 +247,13 @@ async def on_message(message):
             output = ""
 
             async with message.channel.typing():
-                if name in dockers:
+                if name == "*":
+                    m = await message.channel.send("Are you sure you want to start all containers? React with :white_check_mark: to proceed.")
+                    await m.add_reaction("✅")
+                    waiting_messages[m.id] = {"type":"start", "time":time.time()}
+                    return
+
+                elif name in dockers:
 
                     # Challenge shorthand name recognised
                     if dockers[name]["type"] == "compose":
@@ -279,6 +294,43 @@ async def on_message(message):
 			
         else:
             await message.channel.send("Unknown command")
+
+
+@client.event
+async def on_reaction_add(reaction, user):
+
+    if user == client.user:
+        return
+
+    if reaction.message.id in waiting_messages:
+        if (time.time() - waiting_messages[reaction.message.id]["time"]) < 30:
+            r = waiting_messages.pop(reaction.message.id)
+            if r["type"] == "start":
+                await reaction.message.channel.send("Starting all challenges")
+                for chall in dockers:
+                    print("Starting", chall)
+                    m = await reaction.message.channel.send(f"Starting `{chall}`...")
+                    if dockers[chall]["type"] == "compose":
+                        start_compose(dockers[chall]["directory"])
+                    elif dockers[chall]["type"] == "container":
+                        c = dockers[chall]
+                        start_container(c["container-name"])
+                    await m.edit(content=f"`{chall}` started.")
+                await reaction.message.channel.send(":tada: All containers started.")
+
+            elif r["type"] == "stop":
+                await reaction.message.channel.send("Stopping all challenges")
+                for chall in dockers:
+                    print("Stopping", chall)
+                    m = await reaction.message.channel.send(f"Stopping `{chall}`...")
+                    if dockers[chall]["type"] == "compose":
+                        stop_compose(dockers[chall]["directory"])
+                    elif dockers[chall]["type"] == "container":
+                        c = dockers[chall]
+                        stop_container(c["container-name"])
+                    await m.edit(content=f"`{chall}` stopped.")
+                await reaction.message.channel.send(":tada: All containers stopped.")
+
 
 
 # Helper functions
@@ -524,23 +576,11 @@ if len(sys.argv) >= 2:
                 c = dockers[chall]
                 create_container(c["container-name"], c["create-args"], c["image"])
 
-    if "start" in sys.argv:
-        print("Starting all containers")
-        
-        for chall in dockers:
-            print("Starting", chall)
-            if dockers[chall]["type"] == "compose":
-                start_compose(dockers[chall]["directory"])
-            elif dockers[chall]["type"] == "container":
-                c = dockers[chall]
-                start_container(c["container-name"])
-
     if "bot" not in sys.argv:
         sys.exit()
 else:
     print("""Provide one (or more) of the following command line arguments:
     init - remove all preexisting Docker containers and recreate from the Docker container file.
-    start - start all Docker containers from the Docker container file
     bot - start the Discord bot""")
     sys.exit()
 

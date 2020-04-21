@@ -528,7 +528,7 @@ if len(sys.argv) >= 2:
         print("Starting all containers")
         
         for chall in dockers:
-            print("Starting", container)
+            print("Starting", chall)
             if dockers[chall]["type"] == "compose":
                 start_compose(dockers[chall]["directory"])
             elif dockers[chall]["type"] == "container":

@@ -526,10 +526,7 @@ if len(sys.argv) >= 2:
 
     if "start" in sys.argv:
         print("Starting all containers")
-        for container in get_all_containers():
-            print("Removing", container)
-            remove_container(container)
-
+        
         for chall in dockers:
             print("Starting", container)
             if dockers[chall]["type"] == "compose":

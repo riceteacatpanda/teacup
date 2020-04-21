@@ -1,13 +1,14 @@
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
 
 import discord
 
-VERSION = "0.0.9b"
+VERSION = "0.0.10b"
 
 if os.getuid() != 0:
     print("This script requires root privileges.")
@@ -291,6 +292,21 @@ async def on_message(message):
                                   (f" with code {exitcode}" if status == "exited" else "") + "\n"
 
             await message.channel.send(output)
+
+        elif command == "logs":
+            name = input_message[1]
+
+            if name in dockers:
+                if dockers[name]["type"] == "compose":
+                    await message.channel.send("This function only works with containers directly.")
+                    return
+                else:
+                    logs, _ = container_logs(name)
+                    if len(logs) > 1930:
+                        logs = logs[len(logs)-1930:]
+                    logs = escape_ansi(logs)
+                    await message.channel.send(f"Logs for `{name}`\n```\n{logs}\n```")
+
 			
         else:
             await message.channel.send("Unknown command")
@@ -302,6 +318,7 @@ async def on_reaction_add(reaction, user):
     if user == client.user:
         return
 
+    # holy wall of text
     if reaction.message.id in waiting_messages:
         if (time.time() - waiting_messages[reaction.message.id]["time"]) < 30:
             r = waiting_messages.pop(reaction.message.id)
@@ -334,6 +351,11 @@ async def on_reaction_add(reaction, user):
 
 
 # Helper functions
+
+def escape_ansi(line):
+    ansi_escape = re.compile(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]')
+    return ansi_escape.sub('', line)
+
 
 def run_command(command: list) -> tuple:
     """
@@ -456,6 +478,15 @@ def remove_container(name: str):
     """
     run_command(["sudo", "docker", "stop", name])
     run_command(["sudo", "docker", "rm", name])
+
+
+def container_logs(name: str) -> tuple:
+    """
+    Equiv of running sudo docker logs name
+    :param name: duh
+    :return: text response, if container name was used
+    """
+    return run_command(["sudo", "docker", "logs", name])
 
 
 # Create functions

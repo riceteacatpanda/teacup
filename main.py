@@ -8,7 +8,7 @@ import time
 
 import discord
 
-VERSION = "0.0.10b"
+VERSION = "0.0.11b"
 
 if os.getuid() != 0:
     print("This script requires root privileges.")
@@ -36,6 +36,8 @@ with open("settings.json") as f:
     presence_text = settings["playing-line"]
     docker_info_file = settings["docker-info-file"]
     commands = settings["commands"]
+    default_cpu = settings["default-cpus"]
+    default_ram = settings["default-ram"]
 
     del settings
 
@@ -293,6 +295,13 @@ async def on_message(message):
 
             await message.channel.send(output)
 
+        elif command == "init":
+            async with message.channel.typing():
+                m = await message.channel.send("Are you sure you want to initialise all challenges? Likelihood is that this has always been done and you do not need to do it. This will cause outages and realistically you probably do not need to run it. Unless you're Tom, in which case go ahead. If you're not, you can do this or you can walk away and forget this ever happened.\nReact with :white_check_mark: to proceed.")
+                await m.add_reaction("✅")
+                waiting_messages[m.id] = {"type":"init", "time":time.time()}
+                return
+
         elif command == "logs":
             name = input_message[1]
 
@@ -347,6 +356,34 @@ async def on_reaction_add(reaction, user):
                         stop_container(c["container-name"])
                     await m.edit(content=f"`{chall}` stopped.")
                 await reaction.message.channel.send(":tada: All containers stopped.")
+
+            elif r["type"] == "init":
+                await reaction.message.channel.send("Initialising all challenges. This might take a moment or two.")
+                for container in get_all_containers():
+                    m = await reaction.message.channel.send(f"Removing `{container}`...")
+                    remove_container(container)
+                    await m.edit(content=f"`{container}` removed.")
+
+                for chall in dockers:
+                    m = await reaction.message.channel.send(f"Creating `{chall}`...")
+                    if dockers[chall]["type"] == "compose":
+                        create_compose(dockers[chall]["directory"])
+                    elif dockers[chall]["type"] == "container":
+                        c = dockers[chall]
+                        if "cpu" in c:
+                            cpus = c["cpu"]
+                        else:
+                            cpus = default_cpu
+
+                        if "ram" in c:
+                            ram = c["ram"]
+                        else:
+                            ram = default_ram
+
+                        create_container(c["container-name"], c["create-args"], c["image"], ram, cpus)
+                    await m.edit(content=f"`{chall}` created.")
+                await reaction.channel.message.send(":tada: All challenges initialised.")
+
 
 
 
@@ -502,7 +539,7 @@ def create_compose(directory: str):
     os.chdir(bot_location)
 
 
-def create_container(name: str, arguments: list, image: str):
+def create_container(name: str, arguments: list, image: str, memory: str, cpus: str):
     """
     Creates container
     :param name: container name to be
@@ -605,7 +642,17 @@ if len(sys.argv) >= 2:
                 create_compose(dockers[chall]["directory"])
             elif dockers[chall]["type"] == "container":
                 c = dockers[chall]
-                create_container(c["container-name"], c["create-args"], c["image"])
+                if "cpu" in c:
+                    cpus = c["cpu"]
+                else:
+                    cpus = default_cpu
+
+                if "ram" in c:
+                    ram = c["ram"]
+                else:
+                    ram = default_ram
+
+                create_container(c["container-name"], c["create-args"], c["image"], ram, cpus)
 
     if "bot" not in sys.argv:
         sys.exit()

@@ -382,7 +382,8 @@ async def on_reaction_add(reaction, user):
 
                         create_container(c["container-name"], c["create-args"], c["image"], ram, cpus)
                     await m.edit(content=f"`{chall}` created.")
-                await reaction.channel.message.send(":tada: All challenges initialised.")
+
+                await reaction.message.channel.send(":tada: All challenges initialised.")
 
 
 

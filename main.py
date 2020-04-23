@@ -297,7 +297,7 @@ async def on_message(message):
 
         elif command == "init":
             async with message.channel.typing():
-                m = await message.channel.send("Are you sure you want to initialise all challenges? Likelihood is that this has always been done and you do not need to do it. This will cause outages and realistically you probably do not need to run it. Unless you're Tom, in which case go ahead. If you're not, you can do this or you can walk away and forget this ever happened.\nReact with :white_check_mark: to proceed.")
+                m = await message.channel.send("Are you sure you want to initialise all challenges? Likelihood is that this has always been done and you do not need to do it. This will cause outages and realistically you probably do not need to run it. Unless you're Tom, in which case go ahead. If you're not, you can do this or you can walk away and forget this ever happened. Did I mention you probably don't need to do this?\nReact with :white_check_mark: to proceed.")
                 await m.add_reaction("✅")
                 waiting_messages[m.id] = {"type":"init", "time":time.time()}
                 return

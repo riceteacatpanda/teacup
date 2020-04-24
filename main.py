@@ -548,7 +548,7 @@ def create_container(name: str, arguments: list, image: str, memory: str, cpus: 
     :param image: image name to make the container with
     :return: None. Will exit entire script on error.
     """
-    result, error = run_command(["sudo", "docker", "create", f"--name={name}", *arguments, image])
+    result, error = run_command(["sudo", "docker", "create", f"--name={name}", "--cpus", cpus, "--memory", memory, *arguments, image])
     if error:
         print(result)
         sys.exit(-1)

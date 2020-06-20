@@ -2,6 +2,10 @@ import os
 import subprocess
 import json
 
+"""
+This script was written to be run every x minutes using Cron. It's designed to wipe a file from the disk, after checking a docker container status beforehand.
+"""
+
 def run_command(command: list) -> tuple:
     """
     Runs a command
